@@ -10,4 +10,4 @@
 1. 다운로드
 2. 실행
 ## 라이선스
-MIT LIcense
+MIT License
