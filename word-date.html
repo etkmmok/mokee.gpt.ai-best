@@ -1,0 +1,545 @@
+<title>단어 소개팅</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&family=Unbounded:wght@600;800&display=swap">
+<style>
+/* Layout: one-screen swipe app — top bar (timer, score, chemistry), a stack of profile cards, two big verdict buttons, and a reveal strip that teaches the real meaning after every swipe */
+:root {
+  --bg: #fbf3ee;
+  --surface: #ffffff;
+  --ink: #24172e;
+  --muted: #7a6a80;
+  --line: #ecdfe5;
+  --accent: #5b3df5;
+  --true: #0f9f6e;
+  --lie: #e5484d;
+  --bubble: #f3effe;
+  --font-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-word: "Unbounded", "Arial Black", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17121c; --surface: #241d2b; --ink: #f4edf7; --muted: #ab9db3; --line: #3a3042;
+    --accent: #9d87ff; --true: #3ddc97; --lie: #ff7a7f; --bubble: #2f2640; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17121c; --surface: #241d2b; --ink: #f4edf7; --muted: #ab9db3; --line: #3a3042;
+  --accent: #9d87ff; --true: #3ddc97; --lie: #ff7a7f; --bubble: #2f2640; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; -webkit-tap-highlight-color: transparent; }
+
+.app {
+  position: relative; height: 100%; max-width: 460px; margin: 0 auto; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+  padding-block: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.brand { font-family: var(--font-display); font-size: 1.5rem; letter-spacing: -0.01em; }
+.brand span { color: var(--accent); }
+.pills { display: flex; gap: 6px; }
+.pill { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 0.82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill b { font-weight: 600; }
+.pill.chem b { color: var(--accent); }
+.timer { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.timer i { display: block; height: 100%; background: var(--accent); transform-origin: left; }
+.timer.low i { background: var(--lie); }
+
+.deck { position: relative; flex: 1; min-height: 260px; }
+.card {
+  position: absolute; inset: 0; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 26px;
+  box-shadow: 0 12px 30px rgba(36, 23, 46, .10);
+  padding: 22px; display: flex; flex-direction: column; gap: 14px;
+  touch-action: none; user-select: none; cursor: grab;
+  transition: transform .28s cubic-bezier(.2,.8,.3,1), opacity .28s;
+}
+.card.under { transform: scale(.94) translateY(14px); opacity: .7; pointer-events: none; }
+.card.dragging { transition: none; cursor: grabbing; }
+.avatar {
+  width: 76px; height: 76px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--font-word); font-weight: 800; font-size: 2rem; color: #fff;
+}
+.who { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.who > div { min-width: 0; }
+.name { font-family: var(--font-word); font-weight: 800; font-size: clamp(1.4rem, 7vw, 2rem); line-height: 1.1; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+.facts { display: grid; gap: 6px; font-size: 0.92rem; }
+.facts div { display: flex; gap: 10px; }
+.facts dt { color: var(--muted); width: 3.2em; flex: none; }
+.facts dd { margin: 0; min-width: 0; }
+.bubble {
+  margin-top: auto; background: var(--bubble); border-radius: 18px 18px 18px 4px;
+  padding: 14px 16px; font-size: 1.05rem; line-height: 1.5;
+}
+.bubble strong { font-family: var(--font-display); font-weight: 400; font-size: 1.35rem; color: var(--accent); }
+.hint { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); }
+
+.stamp {
+  position: absolute; top: 26px; padding: 4px 12px; border: 4px solid; border-radius: 10px;
+  font-family: var(--font-display); font-size: 2rem; opacity: 0; pointer-events: none;
+}
+.stamp.yes { left: 20px; color: var(--true); transform: rotate(-14deg); }
+.stamp.no { right: 20px; color: var(--lie); transform: rotate(14deg); }
+
+/* Intro card */
+.card.intro { justify-content: center; text-align: center; align-items: center; }
+.intro h2 { font-family: var(--font-display); font-weight: 400; font-size: 2.3rem; margin: 0; }
+.intro p { margin: 0; color: var(--muted); line-height: 1.6; max-width: 30ch; }
+.intro .rule { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+.intro .rule div { border-radius: 14px; padding: 10px; font-size: 0.9rem; }
+.intro .rule .l { background: color-mix(in srgb, var(--lie) 14%, transparent); color: var(--lie); }
+.intro .rule .r { background: color-mix(in srgb, var(--true) 14%, transparent); color: var(--true); }
+.intro .rule b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; }
+.intro .best { font-size: 0.85rem; color: var(--muted); }
+
+.actions { display: flex; justify-content: center; gap: 28px; }
+.act {
+  width: 68px; height: 68px; border-radius: 50%; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line);
+  display: grid; place-items: center; box-shadow: 0 6px 16px rgba(36,23,46,.10);
+  transition: transform .1s;
+}
+.act svg { width: 30px; height: 30px; }
+.act.no { color: var(--lie); } .act.yes { color: var(--true); }
+.act:active { transform: scale(.9); }
+.act:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.act-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--muted); }
+
+.reveal {
+  min-height: 64px; box-sizing: border-box; border-radius: 16px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--line);
+  font-size: 0.9rem; line-height: 1.45; display: flex; flex-direction: column; justify-content: center;
+}
+.reveal .head { font-weight: 600; }
+.reveal .head.ok { color: var(--true); } .reveal .head.bad { color: var(--lie); }
+.reveal .ex { color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+.reveal .ex b { color: var(--ink); font-style: normal; }
+
+.float { position: absolute; left: 50%; top: 40%; z-index: 5; transform: translateX(-50%); pointer-events: none;
+  font-family: var(--font-display); font-size: 1.8rem; animation: rise .8s ease-out forwards; }
+.float.ok { color: var(--true); } .float.bad { color: var(--lie); }
+@keyframes rise { to { transform: translate(-50%, -60px); opacity: 0; } }
+
+/* Result sheet */
+.sheet {
+  position: absolute; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+}
+.sheet-body {
+  width: 100%; max-height: 100%; overflow-y: auto; box-sizing: border-box;
+  background: var(--surface); border-radius: 24px; padding: 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.sheet h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.8rem; margin: 0; text-wrap: balance; }
+.sheet .sub { color: var(--muted); margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { background: var(--bg); border-radius: 14px; padding: 10px; }
+.stats small { display: block; color: var(--muted); font-size: 0.75rem; }
+.stats b { font-family: var(--font-display); font-weight: 400; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.section-label { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--muted); }
+.dumped { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dumped li { background: var(--bg); border-radius: 14px; padding: 10px 12px; display: grid; gap: 2px; }
+.dumped .row1 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dumped .w { font-family: var(--font-word); font-weight: 600; }
+.dumped .m { color: var(--accent); font-weight: 600; }
+.dumped .e { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+.matched { display: flex; flex-wrap: wrap; gap: 6px; }
+.matched span { background: color-mix(in srgb, var(--true) 14%, transparent); color: var(--true); border-radius: 999px; padding: 4px 10px; font-size: 0.85rem; font-family: var(--font-word); font-weight: 600; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1; min-width: 130px; border: 0; border-radius: 14px; padding: 13px 16px; cursor: pointer;
+  font-family: var(--font-display); font-size: 1.15rem; background: var(--accent); color: #fff; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { translate: -8px 0; } 75% { translate: 8px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+  .float, .shake { animation: none; }
+}
+@media (max-height: 640px) {
+  .facts { display: none; }
+  .avatar { width: 56px; height: 56px; font-size: 1.5rem; }
+}
+</style>
+
+<div class="app" id="app">
+  <div class="top">
+    <div class="brand">단어 <span>소개팅</span></div>
+    <div class="pills">
+      <span class="pill">⏱ <b id="time">60</b>초</span>
+      <span class="pill"><b id="score">0</b>점</span>
+      <span class="pill chem">케미 <b id="chem">×1</b></span>
+    </div>
+  </div>
+  <div class="timer" id="timer"><i id="timeFill"></i></div>
+
+  <div class="deck" id="deck"></div>
+
+  <div class="actions">
+    <div class="act-wrap"><button class="act no" id="noBtn" type="button" aria-label="거짓말이야 (왼쪽)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>거짓말</div>
+    <div class="act-wrap"><button class="act yes" id="yesBtn" type="button" aria-label="진짜야 (오른쪽)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.5 3 4.5 6.8 4.5c2.2 0 3.6 1.2 5.2 3 1.6-1.8 3-3 5.2-3 3.8 0 5.9 4 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>
+    </button>진짜야</div>
+  </div>
+
+  <div class="reveal" id="reveal" aria-live="polite">
+    <div class="head">카드를 넘길 때마다 여기서 진짜 뜻과 예문을 알려 줘요.</div>
+    <div class="ex">Swipe right if the word is telling the <b>truth</b>.</div>
+  </div>
+
+  <div class="sheet" id="sheet" hidden>
+    <div class="sheet-body">
+      <h2 id="rTitle">소개팅 끝!</h2>
+      <p class="sub" id="rSub"></p>
+      <div class="stats">
+        <div><small>점수</small><b id="rScore">0</b></div>
+        <div><small>정답률</small><b id="rRate">0%</b></div>
+        <div><small>최고 케미</small><b id="rChem">×1</b></div>
+      </div>
+      <div id="dumpedWrap">
+        <div class="section-label">나를 속인 단어들 · 다시 외워요</div>
+        <ul class="dumped" id="dumped"></ul>
+      </div>
+      <div id="matchedWrap">
+        <div class="section-label">잘 맞힌 단어</div>
+        <div class="matched" id="matched"></div>
+      </div>
+      <div class="btns">
+        <button class="btn" id="rematchBtn" type="button">틀린 단어랑 재대결</button>
+        <button class="btn ghost" id="againBtn" type="button">새 소개팅</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // [word, part of speech, meaning, example]
+  const WORDS = [
+    ['ambiguous','adj','모호한','His answer was ambiguous, so nobody knew what he meant.'],
+    ['abandon','v','버리다','They had to abandon the car in the snow.'],
+    ['accurate','adj','정확한','The weather forecast was surprisingly accurate.'],
+    ['acquire','v','얻다, 습득하다','Kids acquire new languages quickly.'],
+    ['adapt','v','적응하다','Cats adapt to new homes slowly.'],
+    ['anticipate','v','예상하다','We didn\'t anticipate so many guests.'],
+    ['reluctant','adj','꺼리는','She was reluctant to share her fries.'],
+    ['vulnerable','adj','취약한','Old phones are vulnerable to viruses.'],
+    ['inevitable','adj','불가피한','Mistakes are inevitable when you learn.'],
+    ['subtle','adj','미묘한','There is a subtle difference between the two.'],
+    ['scarce','adj','부족한, 드문','Water is scarce in the desert.'],
+    ['enhance','v','향상시키다','Good lighting can enhance a photo.'],
+    ['conceal','v','감추다','He tried to conceal his smile.'],
+    ['diminish','v','줄어들다','The pain will diminish over time.'],
+    ['emerge','v','나타나다','A cat emerged from the box.'],
+    ['preserve','v','보존하다','Salt helps preserve food.'],
+    ['perceive','v','인지하다','Dogs perceive smells we can\'t.'],
+    ['mutual','adj','상호의, 서로의','Their friendship is built on mutual respect.'],
+    ['obscure','adj','잘 알려지지 않은','He loves obscure indie bands.'],
+    ['sustain','v','유지하다','It is hard to sustain focus for hours.'],
+    ['borrow','v','빌리다','Can I borrow your charger?'],
+    ['nervous','adj','긴장한','I get nervous before exams.'],
+    ['journey','n','여정','Life is a long journey.'],
+    ['advice','n','조언','Thanks for the advice!'],
+    ['curious','adj','호기심 많은','Babies are curious about everything.'],
+    ['awkward','adj','어색한','There was an awkward silence.'],
+    ['brave','adj','용감한','It was brave of you to speak up.'],
+    ['generous','adj','너그러운, 후한','My aunt is generous with snacks.'],
+    ['habit','n','습관','Reading before bed is a good habit.'],
+    ['opportunity','n','기회','This is a great opportunity.'],
+    ['purpose','n','목적','What is the purpose of this meeting?'],
+    ['rumor','n','소문','Don\'t believe every rumor you hear.'],
+    ['stubborn','adj','고집 센','My little brother is so stubborn.'],
+    ['temporary','adj','일시적인','This is only a temporary fix.'],
+    ['exhausted','adj','녹초가 된','I was exhausted after the hike.'],
+    ['consume','v','소비하다','Teens consume a lot of video content.'],
+    ['deny','v','부인하다','He denied eating the cake.'],
+    ['admire','v','존경하다, 감탄하다','I admire her courage.'],
+    ['hesitate','v','망설이다','Don\'t hesitate to ask.'],
+    ['compliment','n','칭찬','Thanks for the compliment!']
+  ];
+  const POS = { adj: '형용사', v: '동사', n: '명사' };
+  const MBTI = ['ENFP','INTJ','ISFJ','ENTP','INFP','ESTJ','ISTP','ENFJ','INFJ','ESFP'];
+  const HOBBY = ['새벽 3시에 라면 끓이기','고양이 영상 정주행','혼자 코인노래방','편의점 신상 털기','수능 지문에 몰래 출연하기',
+    '사전 구석에서 낮잠','영어 선생님 놀래키기','단어장 맨 앞 페이지 차지하기','틱톡 챌린지 따라 하기','마라탕 단계 올리기'];
+  const ROUND_MS = 60000, PENALTY_MS = 3000;
+
+  const $ = id => document.getElementById(id);
+  const deckEl = $('deck');
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('wd-' + k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem('wd-' + k, JSON.stringify(v)); } catch (_) {} }
+  };
+
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const hueOf = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  // Korean particle: 이라는 after a final consonant, 라는 otherwise
+  const josa = s => { const c = s.charCodeAt(s.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '이라는' : '라는'; };
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const chemOf = streak => 1 + Math.min(4, Math.floor(streak / 3));
+
+  function speak(text) {
+    try { const s = window.speechSynthesis; if (!s) return; s.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = 0.9; s.speak(u); } catch (_) {}
+  }
+
+  // ---------- state ----------
+  let g = null, timerRaf = 0, busy = false;
+
+  function makeProfile(item) {
+    const truth = Math.random() < 0.5;
+    let claim = item[2];
+    if (!truth) {
+      const same = WORDS.filter(w => w !== item && w[1] === item[1]);
+      claim = pick(same.length ? same : WORDS.filter(w => w !== item))[2];
+    }
+    return { item, truth, claim, mbti: pick(MBTI), hobby: pick(HOBBY) };
+  }
+
+  function nextProfile() {
+    if (!g.queue.length) g.queue = shuffle(g.pool.slice());
+    return makeProfile(g.queue.shift());
+  }
+
+  // ---------- cards ----------
+  function cardEl(p) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    if (p.intro) {
+      el.classList.add('intro');
+      const best = store.get('best', 0);
+      el.innerHTML = `
+        <h2>단어 소개팅</h2>
+        <p>영어 단어들이 프로필을 들고 나왔어요. 그런데 몇몇은 자기 뜻을 속이고 있어요. 60초 동안 거짓말쟁이를 가려내세요.</p>
+        <div class="rule"><div class="l"><b>← 거짓말</b>뜻이 틀렸으면</div><div class="r"><b>진짜야 →</b>뜻이 맞으면</div></div>
+        <p class="best">${best ? `내 최고 기록 ${best}점` : '틀리면 3초가 깎여요. 연속으로 맞히면 케미가 올라 점수가 커져요.'}</p>
+        <p><b>이 카드를 아무 쪽으로나 넘기면 시작해요</b></p>
+        <span class="stamp yes">진짜</span><span class="stamp no">거짓</span>`;
+      return el;
+    }
+    const [word, pos] = p.item;
+    const h = hueOf(word);
+    el.innerHTML = `
+      <div class="who">
+        <div class="avatar" style="background: linear-gradient(135deg, hsl(${h} 75% 58%), hsl(${(h + 50) % 360} 70% 48%))">${esc(word[0].toUpperCase())}</div>
+        <div><div class="name">${esc(word)}</div><div class="meta">${POS[pos]} · ${word.length}글자 · ${p.mbti}</div></div>
+      </div>
+      <dl class="facts">
+        <div><dt>취미</dt><dd>${esc(p.hobby)}</dd></div>
+        <div><dt>이상형</dt><dd>나를 한 번에 알아보는 사람</dd></div>
+      </dl>
+      <div class="bubble">안녕! 나는 <strong>${esc(p.claim)}</strong>${josa(p.claim)} 뜻이야.</div>
+      <div class="hint"><span>← 거짓말</span><span>이름 누르면 발음</span><span>진짜야 →</span></div>
+      <span class="stamp yes">진짜</span><span class="stamp no">거짓</span>`;
+    el.querySelector('.name').addEventListener('click', () => speak(word));
+    return el;
+  }
+
+  let top = null, under = null, topData = null, underData = null;
+
+  function mountStack(first, second) {
+    deckEl.innerHTML = '';
+    topData = first; underData = second;
+    under = second ? cardEl(second) : null;
+    if (under) { under.classList.add('under'); deckEl.appendChild(under); }
+    top = cardEl(first);
+    deckEl.appendChild(top);
+    bindDrag(top);
+  }
+
+  function advance() {
+    topData = underData;
+    top = under;
+    if (top) { top.classList.remove('under'); bindDrag(top); }
+    underData = nextProfile();
+    under = cardEl(underData);
+    under.classList.add('under');
+    deckEl.insertBefore(under, deckEl.firstChild);
+  }
+
+  function setStamps(card, dx) {
+    card.querySelector('.stamp.yes').style.opacity = Math.max(0, Math.min(1, dx / 90));
+    card.querySelector('.stamp.no').style.opacity = Math.max(0, Math.min(1, -dx / 90));
+  }
+
+  function bindDrag(card) {
+    let sx = 0, sy = 0, dx = 0, active = false;
+    card.addEventListener('pointerdown', e => {
+      if (busy || (e.target.closest('.name'))) return;
+      active = true; sx = e.clientX; sy = e.clientY; dx = 0;
+      card.classList.add('dragging');
+      card.setPointerCapture(e.pointerId);
+    });
+    card.addEventListener('pointermove', e => {
+      if (!active) return;
+      dx = e.clientX - sx;
+      const dy = (e.clientY - sy) * 0.3;
+      card.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 16}deg)`;
+      setStamps(card, dx);
+    });
+    const end = () => {
+      if (!active) return;
+      active = false;
+      card.classList.remove('dragging');
+      if (Math.abs(dx) > 90) decide(dx > 0);
+      else { card.style.transform = ''; setStamps(card, 0); }
+    };
+    card.addEventListener('pointerup', end);
+    card.addEventListener('pointercancel', end);
+  }
+
+  function flyOut(card, right) {
+    setStamps(card, right ? 120 : -120);
+    card.style.transform = `translate(${right ? 140 : -140}%, 30px) rotate(${right ? 24 : -24}deg)`;
+    card.style.opacity = '0';
+    setTimeout(() => card.remove(), 300);
+  }
+
+  // ---------- game ----------
+  function decide(saidTrue) {
+    if (busy || !top) return;
+    const card = top, data = topData;
+    flyOut(card, saidTrue);
+
+    if (data.intro) {
+      top = null; // block double swipes while the intro card flies away
+      setTimeout(() => startRound(g && g.rematch), 260);
+      return;
+    }
+    if (!g || !g.running) return;
+
+    const [word, , meaning, example] = data.item;
+    const right = saidTrue === data.truth;
+    g.seen++;
+    if (right) {
+      g.streak++; g.maxChem = Math.max(g.maxChem, chemOf(g.streak));
+      const pts = 100 * chemOf(g.streak);
+      g.score += pts; g.correct++;
+      g.matched.add(word);
+      floatText('+' + pts, true);
+    } else {
+      g.streak = 0;
+      g.endAt -= PENALTY_MS;
+      g.dumped.set(word, data.item);
+      g.queue.splice(Math.min(4, g.queue.length), 0, data.item); // meets you again soon
+      floatText('−3초', false);
+      $('app').classList.remove('shake'); void $('app').offsetWidth; $('app').classList.add('shake');
+    }
+    showReveal(right, data, word, meaning, example);
+    renderHud();
+    advance();
+  }
+
+  function showReveal(right, data, word, meaning, example) {
+    let head;
+    if (right && data.truth) head = `정답! ${word}는 진짜로 「${meaning}」`;
+    else if (right) head = `정답! 거짓말이었어요. ${word}의 진짜 뜻은 「${meaning}」`;
+    else if (data.truth) head = `아쉬워요. 진짜였어요! ${word} = 「${meaning}」`;
+    else head = `속았어요! ${word}의 진짜 뜻은 「${meaning}」`;
+    const re = new RegExp(`\\b(${word}\\w*)`, 'i');
+    $('reveal').innerHTML = `<div class="head ${right ? 'ok' : 'bad'}">${esc(head)}</div><div class="ex">${esc(example).replace(re, '<b>$1</b>')}</div>`;
+  }
+
+  function floatText(t, ok) {
+    const f = document.createElement('span');
+    f.className = 'float ' + (ok ? 'ok' : 'bad');
+    f.textContent = t;
+    deckEl.appendChild(f);
+    setTimeout(() => f.remove(), 800);
+  }
+
+  function renderHud() {
+    $('score').textContent = g ? g.score : 0;
+    $('chem').textContent = '×' + (g ? chemOf(g.streak) : 1);
+  }
+
+  function startRound(rematchWords) {
+    const pool = rematchWords && rematchWords.length ? rematchWords : WORDS.slice();
+    g = { pool, queue: shuffle(pool.slice()), score: 0, streak: 0, maxChem: 1, correct: 0, seen: 0,
+          matched: new Set(), dumped: new Map(), endAt: performance.now() + ROUND_MS, running: true, rematch: null };
+    $('sheet').hidden = true;
+    renderHud();
+    mountStack(nextProfile(), nextProfile());
+    cancelAnimationFrame(timerRaf);
+    timerRaf = requestAnimationFrame(tickTimer);
+  }
+
+  function tickTimer() {
+    const left = Math.max(0, g.endAt - performance.now());
+    $('time').textContent = Math.ceil(left / 1000);
+    $('timeFill').style.transform = `scaleX(${left / ROUND_MS})`;
+    $('timer').classList.toggle('low', left < 10000);
+    if (left <= 0) return endRound();
+    timerRaf = requestAnimationFrame(tickTimer);
+  }
+
+  function titleFor(c) {
+    if (c >= 25) return '단어계의 인기스타';
+    if (c >= 18) return '밀당 고수';
+    if (c >= 12) return '썸 타는 중';
+    if (c >= 6) return '설레는 첫 만남';
+    return '아직 낯가리는 중';
+  }
+
+  function endRound() {
+    g.running = false;
+    busy = true;
+    const prev = store.get('best', 0);
+    if (g.score > prev) store.set('best', g.score);
+    $('rTitle').textContent = g.score > prev && g.score > 0 ? `새 기록! ${titleFor(g.correct)}` : titleFor(g.correct);
+    $('rSub').textContent = `${g.seen}명을 만나서 ${g.correct}명의 정체를 맞혔어요. 최고 기록 ${Math.max(prev, g.score)}점.`;
+    $('rScore').textContent = g.score;
+    $('rRate').textContent = g.seen ? Math.round(g.correct / g.seen * 100) + '%' : '0%';
+    $('rChem').textContent = '×' + g.maxChem;
+
+    const ul = $('dumped'); ul.innerHTML = '';
+    for (const [w, , m, e] of g.dumped.values()) {
+      const li = document.createElement('li');
+      li.innerHTML = `<div class="row1"><span class="w">${esc(w)}</span><span class="m">${esc(m)}</span></div><div class="e">${esc(e)}</div>`;
+      li.addEventListener('click', () => speak(w));
+      ul.appendChild(li);
+    }
+    $('dumpedWrap').hidden = g.dumped.size === 0;
+    $('rematchBtn').hidden = g.dumped.size === 0;
+    const mt = $('matched'); mt.innerHTML = '';
+    [...g.matched].forEach(w => { const s = document.createElement('span'); s.textContent = w; mt.appendChild(s); });
+    $('matchedWrap').hidden = g.matched.size === 0;
+
+    $('sheet').hidden = false;
+    ($('rematchBtn').hidden ? $('againBtn') : $('rematchBtn')).focus({ preventScroll: true });
+  }
+
+  function backToIntro(rematchWords) {
+    busy = false;
+    $('sheet').hidden = true;
+    g = { running: false, rematch: rematchWords };
+    mountStack({ intro: true }, makeProfile(pick(WORDS)));
+    $('time').textContent = 60;
+    $('timeFill').style.transform = 'scaleX(1)';
+    $('timer').classList.remove('low');
+    $('score').textContent = 0; $('chem').textContent = '×1';
+  }
+
+  $('yesBtn').addEventListener('click', () => decide(true));
+  $('noBtn').addEventListener('click', () => decide(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') decide(true);
+    if (e.key === 'ArrowLeft') decide(false);
+  });
+  $('againBtn').addEventListener('click', () => { busy = false; startRound(); });
+  $('rematchBtn').addEventListener('click', () => { const w = [...g.dumped.values()]; busy = false; startRound(w); });
+
+  // Opening frame: intro card on top of a real profile
+  backToIntro(null);
+})();
+</script>
