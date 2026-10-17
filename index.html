@@ -1,0 +1,368 @@
+<title>두더지 팡팡</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: one-screen arcade — score strip on top, 3×3 garden of holes, action bar below */
+:root {
+  --sky: #dff1e4;
+  --grass: #8fcf6b;
+  --grass-dark: #5fa244;
+  --soil: #6b4a33;
+  --soil-deep: #3e2a1c;
+  --fur: #9a6b4a;
+  --fur-light: #d9b38c;
+  --gold: #f2b623;
+  --spike: #4d5a63;
+  --ink: #233024;
+  --ink-soft: #4f6151;
+  --card: #fbfdf8;
+  --accent: #e2563b;
+  --font-display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sky: #142019; --grass: #3f7a34; --grass-dark: #2c5a25;
+    --soil: #4a3324; --soil-deep: #1e140d; --ink: #e8f2e4; --ink-soft: #a9bca7;
+    --card: #1d2b22; --accent: #ff7a5c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sky: #142019; --grass: #3f7a34; --grass-dark: #2c5a25;
+  --soil: #4a3324; --soil-deep: #1e140d; --ink: #e8f2e4; --ink-soft: #a9bca7;
+  --card: #1d2b22; --accent: #ff7a5c; color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.app {
+  height: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: 2rem; margin: 0; letter-spacing: -0.01em; }
+h1 span { color: var(--accent); }
+.best { font-size: 0.9rem; color: var(--ink-soft); }
+.best b { font-family: var(--font-display); font-weight: 400; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.hud { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--card); border-radius: 14px; padding: 8px 12px; display: flex; flex-direction: column; }
+.stat small { font-size: 0.72rem; letter-spacing: 0.06em; color: var(--ink-soft); }
+.stat strong { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat.combo strong { color: var(--accent); }
+.timebar { height: 8px; border-radius: 99px; background: var(--card); overflow: hidden; }
+.timebar i { display: block; height: 100%; width: 100%; background: var(--grass-dark); transform-origin: left; transition: transform 0.1s linear; }
+.timebar.low i { background: var(--accent); }
+
+.garden {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--grass);
+  border-radius: 24px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 10px;
+  box-shadow: inset 0 -10px 0 var(--grass-dark);
+}
+.hole {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 0 50% 50% / 0 0 30% 30%;
+  cursor: pointer;
+  touch-action: manipulation;
+  border: 0; padding: 0; background: none;
+}
+.hole::after { /* front lip of dirt hides the mole's body */
+  content: ""; position: absolute; left: 4%; right: 4%; bottom: 0; height: 26%;
+  background: var(--soil); border-radius: 50%; z-index: 2;
+}
+.hole::before { /* the dark opening */
+  content: ""; position: absolute; left: 8%; right: 8%; bottom: 10%; height: 22%;
+  background: var(--soil-deep); border-radius: 50%; z-index: 0;
+}
+.hole:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 16px; }
+
+.critter {
+  position: absolute; left: 50%; bottom: 8%; z-index: 1;
+  width: 62%; aspect-ratio: 1 / 1.1; max-width: 100%;
+  transform: translate(-50%, 105%);
+  transition: transform 0.14s cubic-bezier(.3,1.6,.6,1);
+  border-radius: 48% 48% 30% 30%;
+  background: var(--fur);
+}
+.hole.up .critter { transform: translate(-50%, 8%); }
+.hole.hit .critter { transform: translate(-50%, 105%) scaleY(.7); transition-duration: .2s; }
+.critter .eye { position: absolute; top: 30%; width: 11%; aspect-ratio: 1; background: #1c1410; border-radius: 50%; }
+.critter .eye.l { left: 28%; } .critter .eye.r { right: 28%; }
+.critter .snout { position: absolute; top: 44%; left: 30%; width: 40%; height: 26%; background: var(--fur-light); border-radius: 50%; }
+.critter .nose { position: absolute; top: 46%; left: 43%; width: 14%; height: 10%; background: #e88a8a; border-radius: 50%; z-index: 1; }
+.hole.hit .eye { height: 3px; aspect-ratio: auto; top: 34%; border-radius: 2px; }
+
+.critter.gold { background: var(--gold); box-shadow: 0 0 18px 4px rgba(242,182,35,.6); }
+.critter.gold .snout { background: #fde6a3; }
+.critter.spiky { background: var(--spike); border-radius: 50% 50% 36% 36%;
+  background-image: repeating-conic-gradient(from 0deg at 50% 100%, var(--spike) 0 6deg, #2f383e 6deg 12deg); }
+.critter.spiky .snout { background: #c9b9a6; }
+
+.pop {
+  position: absolute; left: 50%; top: 20%; z-index: 3; pointer-events: none;
+  font-family: var(--font-display); font-size: 1.3rem; color: #fff;
+  text-shadow: 0 2px 0 rgba(0,0,0,.35);
+  animation: pop .7s ease-out forwards;
+}
+.pop.bad { color: #ffd2c8; }
+@keyframes pop { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -60%); opacity: 0; } }
+
+.overlay {
+  position: absolute; inset: 0; z-index: 5; border-radius: 24px;
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+  background: color-mix(in srgb, var(--soil-deep) 55%, transparent);
+}
+.panel { background: var(--card); border-radius: 20px; padding: 20px 22px; max-width: 320px; width: 100%; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.panel h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; margin: 0; text-wrap: balance; }
+.panel p { margin: 0; color: var(--ink-soft); line-height: 1.5; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; font-size: 0.92rem; }
+.legend li { display: flex; align-items: center; gap: 10px; }
+.legend i { width: 18px; height: 18px; border-radius: 50% 50% 30% 30%; flex: none; }
+.legend b { font-family: var(--font-display); font-weight: 400; margin-left: auto; font-variant-numeric: tabular-nums; }
+.result { font-family: var(--font-display); font-size: 3rem; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rank { font-family: var(--font-display); font-size: 1.1rem; }
+
+.btn {
+  font-family: var(--font-display); font-size: 1.25rem; color: #fff;
+  background: var(--accent); border: 0; border-radius: 14px; padding: 12px 18px; cursor: pointer;
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 60%, #000);
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, #000); }
+.btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+footer { text-align: center; font-size: 0.8rem; color: var(--ink-soft); }
+
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .critter, .timebar i { transition: none; }
+  .pop, .shake { animation: none; }
+}
+</style>
+
+<div class="app">
+  <header>
+    <h1>두더지 <span>팡팡</span></h1>
+    <div class="best">최고 기록 <b id="best">0</b>점</div>
+  </header>
+
+  <div class="hud">
+    <div class="stat"><small>점수</small><strong id="score">0</strong></div>
+    <div class="stat"><small>남은 시간</small><strong id="time">30.0</strong></div>
+    <div class="stat combo"><small>콤보</small><strong id="combo">×1</strong></div>
+  </div>
+  <div class="timebar" id="timebar"><i id="timefill"></i></div>
+
+  <div class="garden" id="garden">
+    <div class="overlay" id="overlay">
+      <div class="panel" id="panel">
+        <h2>튀어나오면 바로 팡!</h2>
+        <p>30초 동안 두더지를 최대한 많이 잡으세요. 연속으로 맞히면 콤보가 쌓여요.</p>
+        <ul class="legend">
+          <li><i style="background:var(--fur)"></i>두더지<b>+10</b></li>
+          <li><i style="background:var(--gold)"></i>황금 두더지 (빨라요)<b>+30</b></li>
+          <li><i style="background:var(--spike)"></i>고슴도치 (때리지 마세요)<b>−20</b></li>
+        </ul>
+        <button class="btn" id="start" type="button">게임 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>키보드: 숫자패드 1–9 로도 칠 수 있어요</footer>
+</div>
+
+<script>
+(() => {
+  const GAME_SECONDS = 30;
+  const garden = document.getElementById('garden');
+  const overlay = document.getElementById('overlay');
+  const panel = document.getElementById('panel');
+  const $ = id => document.getElementById(id);
+
+  // Build 9 holes
+  const holes = [];
+  for (let i = 0; i < 9; i++) {
+    const h = document.createElement('button');
+    h.className = 'hole';
+    h.type = 'button';
+    h.setAttribute('aria-label', `구멍 ${i + 1}`);
+    h.innerHTML = '<div class="critter"><span class="eye l"></span><span class="eye r"></span><span class="snout"></span><span class="nose"></span></div>';
+    h.addEventListener('pointerdown', e => { e.preventDefault(); whack(i); });
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); whack(i); } });
+    garden.insertBefore(h, overlay);
+    holes.push({ el: h, critter: h.firstChild, kind: null, timer: 0 });
+  }
+
+  let best = 0;
+  try { best = Number(localStorage.getItem('mole-best')) || 0; } catch (_) {}
+  $('best').textContent = best;
+
+  let running = false, score = 0, combo = 0, endAt = 0, spawnTimer = 0, raf = 0;
+
+  // Resting state: one mole peeking out behind the start panel
+  show(4, 'mole', 0);
+
+  function multiplier() { return 1 + Math.min(4, Math.floor(combo / 5)); }
+
+  function show(i, kind, life) {
+    const h = holes[i];
+    h.kind = kind;
+    h.critter.className = 'critter' + (kind === 'gold' ? ' gold' : kind === 'spiky' ? ' spiky' : '');
+    h.el.classList.remove('hit');
+    h.el.classList.add('up');
+    clearTimeout(h.timer);
+    if (life) h.timer = setTimeout(() => hide(i, true), life);
+  }
+
+  function hide(i, missed) {
+    const h = holes[i];
+    if (missed && running && (h.kind === 'mole' || h.kind === 'gold')) { combo = 0; render(); }
+    h.kind = null;
+    h.el.classList.remove('up');
+    clearTimeout(h.timer);
+  }
+
+  function spawn() {
+    if (!running) return;
+    const elapsed = 1 - (endAt - performance.now()) / (GAME_SECONDS * 1000);
+    const free = holes.map((h, i) => h.kind ? -1 : i).filter(i => i >= 0);
+    if (free.length) {
+      const i = free[Math.floor(Math.random() * free.length)];
+      const r = Math.random();
+      const kind = r < 0.12 ? 'gold' : r < 0.12 + 0.12 + elapsed * 0.1 ? 'spiky' : 'mole';
+      const base = 1100 - elapsed * 550;            // moles get quicker over time
+      show(i, kind, kind === 'gold' ? base * 0.55 : base);
+    }
+    spawnTimer = setTimeout(spawn, 650 - elapsed * 330 + Math.random() * 200);
+  }
+
+  function popText(i, text, bad) {
+    const p = document.createElement('span');
+    p.className = 'pop' + (bad ? ' bad' : '');
+    p.textContent = text;
+    holes[i].el.appendChild(p);
+    setTimeout(() => p.remove(), 700);
+  }
+
+  function whack(i) {
+    if (!running) return;
+    const h = holes[i];
+    if (!h.kind || h.el.classList.contains('hit')) return;
+    if (h.kind === 'spiky') {
+      score = Math.max(0, score - 20);
+      combo = 0;
+      popText(i, '−20', true);
+      garden.classList.remove('shake'); void garden.offsetWidth; garden.classList.add('shake');
+      beep(140, 0.15, 'sawtooth');
+    } else {
+      combo++;
+      const pts = (h.kind === 'gold' ? 30 : 10) * multiplier();
+      score += pts;
+      popText(i, '+' + pts);
+      beep(h.kind === 'gold' ? 880 : 520 + Math.min(combo, 20) * 20, 0.08, 'square');
+    }
+    h.el.classList.add('hit');
+    clearTimeout(h.timer);
+    h.timer = setTimeout(() => { h.el.classList.remove('hit'); hide(i, false); }, 180);
+    render();
+  }
+
+  function render() {
+    $('score').textContent = score;
+    $('combo').textContent = '×' + multiplier();
+  }
+
+  function tick() {
+    const left = Math.max(0, endAt - performance.now());
+    $('time').textContent = (left / 1000).toFixed(1);
+    $('timefill').style.transform = `scaleX(${left / (GAME_SECONDS * 1000)})`;
+    $('timebar').classList.toggle('low', left < 5000);
+    if (left <= 0) return finish();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    holes.forEach((_, i) => hide(i, false));
+    score = 0; combo = 0; running = true;
+    endAt = performance.now() + GAME_SECONDS * 1000;
+    overlay.hidden = true;
+    render();
+    tick();
+    spawnTimer = setTimeout(spawn, 400);
+    holes[4].el.focus({ preventScroll: true });
+  }
+
+  function rankFor(s) {
+    if (s >= 900) return '전설의 망치';
+    if (s >= 600) return '두더지 사냥꾼';
+    if (s >= 350) return '날쌘 손';
+    if (s >= 150) return '수습 정원사';
+    return '아직 몸풀기 중';
+  }
+
+  function finish() {
+    running = false;
+    clearTimeout(spawnTimer);
+    cancelAnimationFrame(raf);
+    holes.forEach((_, i) => hide(i, false));
+    const isBest = score > best;
+    if (isBest) {
+      best = score;
+      $('best').textContent = best;
+      try { localStorage.setItem('mole-best', String(best)); } catch (_) {}
+    }
+    panel.innerHTML = `
+      <h2>${isBest ? '새 최고 기록!' : '시간 끝!'}</h2>
+      <div class="result">${score}<small style="font-size:1.2rem">점</small></div>
+      <div class="rank">칭호: ${rankFor(score)}</div>
+      <p>최고 기록 ${best}점</p>
+      <button class="btn" id="again" type="button">한 판 더</button>`;
+    overlay.hidden = false;
+    $('again').addEventListener('click', start);
+    $('again').focus({ preventScroll: true });
+  }
+
+  // Tiny sound effects, created on first user gesture
+  let audio;
+  function beep(freq, dur, type) {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.06, audio.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+      o.connect(g).connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + dur);
+    } catch (_) {}
+  }
+
+  // Number keys map like a phone keypad layout: 7 8 9 / 4 5 6 / 1 2 3
+  const keyMap = { '7': 0, '8': 1, '9': 2, '4': 3, '5': 4, '6': 5, '1': 6, '2': 7, '3': 8 };
+  document.addEventListener('keydown', e => { if (e.key in keyMap) whack(keyMap[e.key]); });
+
+  $('start').addEventListener('click', start);
+})();
+</script>
